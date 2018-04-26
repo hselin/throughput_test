@@ -17,7 +17,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define NUM_CONNECTIONS			(20)
 #define SERV_PORT				(9090)
 
 
@@ -46,15 +45,17 @@ void set_non_block(int fd)
 
 int main(int argc, char **argv)
 {
-	int fds[NUM_CONNECTIONS];
+	int num_connections = atoi(argv[1]);
+
+	int fds[num_connections];
  	struct sockaddr_in addr;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(argv[1]);
+	addr.sin_addr.s_addr = inet_addr(argv[2]);
 	addr.sin_port = htons(SERV_PORT);
 
- 	for(int i = 0; i < NUM_CONNECTIONS; i++)
+ 	for(int i = 0; i < num_connections; i++)
  	{
  		fds[i] = socket(AF_INET, SOCK_STREAM, 0);
  		assert(fds[i] >= 0);
@@ -77,7 +78,7 @@ int main(int argc, char **argv)
 
  	while(1)
  	{
- 		for(int i = 0; i < NUM_CONNECTIONS; i++)
+ 		for(int i = 0; i < num_connections; i++)
  		{
  			write(fds[i], buffer, BUFFER_SIZE);
  		}

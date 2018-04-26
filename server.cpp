@@ -17,7 +17,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define NUM_CONNECTIONS			(20)
 #define SERV_PORT				(9090)
 
 
@@ -56,6 +55,8 @@ int main(int argc, char **argv)
 	int listen_fd;
 	struct sockaddr_in addr;
 
+	int num_connections = atoi(argv[1]);
+
 	listen_fd = socket(AF_INET, SOCK_STREAM, 0);
 
 	memset(&addr, 0, sizeof(addr));
@@ -64,11 +65,11 @@ int main(int argc, char **argv)
 	addr.sin_port = htons(SERV_PORT);
 
 	bind(listen_fd, (struct sockaddr *) &addr, sizeof(addr));
-	listen(listen_fd, NUM_CONNECTIONS);
+	listen(listen_fd, num_connections);
 
-	int fds[NUM_CONNECTIONS];
+	int fds[num_connections];
 
-	for(int i = 0; i < NUM_CONNECTIONS; i++)
+	for(int i = 0; i < num_connections; i++)
 	{
 		struct sockaddr_in remote_addr;
 		socklen_t addr_len = sizeof(remote_addr);
@@ -91,7 +92,7 @@ int main(int argc, char **argv)
 	clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 	do
 	{
-		for(int i = 0; i < NUM_CONNECTIONS; i++)
+		for(int i = 0; i < num_connections; i++)
 		{
 			ssize_t status = recv(fds[i], buffer, BUFFER_SIZE, MSG_DONTWAIT);
 
