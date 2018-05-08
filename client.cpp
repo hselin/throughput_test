@@ -16,8 +16,9 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <netinet/tcp.h>
 
-#define SERV_PORT				(9090)
+#define SERV_PORT				(8000)
 
 
 #define KB						(1024)
@@ -43,48 +44,59 @@ void set_non_block(int fd)
 	} 
 }
 
+void disable_nagle(int fd)
+{
+	int flag = 1;
+	int result = setsockopt(fd,            /* socket affected */
+							IPPROTO_TCP,     /* set option at TCP level */
+							TCP_NODELAY,     /* name of option */
+							(char *) &flag,  /* the cast is historical cruft */
+							sizeof(int));    /* length of option value */
+	assert(!result);
+}
+
 int main(int argc, char **argv)
 {
 	int num_connections = atoi(argv[1]);
 
 	int fds[num_connections];
- 	struct sockaddr_in addr;
+	struct sockaddr_in addr;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(argv[2]);
 	addr.sin_port = htons(SERV_PORT);
 
- 	for(int i = 0; i < num_connections; i++)
- 	{
- 		fds[i] = socket(AF_INET, SOCK_STREAM, 0);
- 		assert(fds[i] >= 0);
+	for(int i = 0; i < num_connections; i++)
+	{
+		fds[i] = socket(AF_INET, SOCK_STREAM, 0);
+		assert(fds[i] >= 0);
 
- 		int status = connect(fds[i], (struct sockaddr *) &addr, sizeof(addr));
+		int status = connect(fds[i], (struct sockaddr *) &addr, sizeof(addr));
 
- 		if(status < 0)
- 		{
- 			perror("error connecting");
- 		}
+		if(status < 0)
+		{
+			perror("error connecting");
+		}
 
- 		assert(!status);
+		assert(!status);
 
- 		set_non_block(fds[i]);
- 	}
+		set_non_block(fds[i]);
+		disable_nagle(fds[i]);
+	}
 
- 	
+	char *buffer = (char *)calloc(1, BUFFER_SIZE);
+	assert(buffer);
 
- 	char buffer[BUFFER_SIZE];
+	while(1)
+	{
+		for(int i = 0; i < num_connections; i++)
+		{
+			write(fds[i], buffer, BUFFER_SIZE);
+		}
 
- 	while(1)
- 	{
- 		for(int i = 0; i < num_connections; i++)
- 		{
- 			write(fds[i], buffer, BUFFER_SIZE);
- 		}
-
- 		usleep(10000);
- 	}
+		//usleep(10000);
+	}
 
 	return 0;
 }

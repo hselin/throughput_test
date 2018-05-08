@@ -16,8 +16,9 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <netinet/tcp.h>
 
-#define SERV_PORT				(9090)
+#define SERV_PORT				(8000)
 
 
 #define KB						(1024)
@@ -26,7 +27,7 @@
 
 #define BUFFER_SIZE				(1 * MB)
 
-#define TEST_TIME_US			(10 * 1000000)
+#define TEST_TIME_US			(30 * 1000000)
 
 void set_non_block(int fd)
 {
@@ -43,6 +44,17 @@ void set_non_block(int fd)
 	{ 
 	    assert(0);
 	} 
+}
+
+void disable_nagle(int fd)
+{
+	int flag = 1;
+	int result = setsockopt(fd,            /* socket affected */
+							IPPROTO_TCP,     /* set option at TCP level */
+							TCP_NODELAY,     /* name of option */
+							(char *) &flag,  /* the cast is historical cruft */
+							sizeof(int));    /* length of option value */
+	assert(!result);
 }
 
 uint64_t getElapsedTime(struct timespec *start, struct timespec *end)
@@ -79,6 +91,7 @@ int main(int argc, char **argv)
 		printf("accepted: %d\n", i);
 
 		set_non_block(fds[i]);
+		disable_nagle(fds[i]);
 	}
 
 
@@ -86,7 +99,9 @@ int main(int argc, char **argv)
 	struct timespec start, now;
 	uint64_t elapsedTime;
 
-	char buffer[BUFFER_SIZE];
+	char *buffer = (char *)calloc(1, BUFFER_SIZE);
+	assert(buffer);
+
 	uint64_t total_bytes_received = 0;
 
 	clock_gettime(CLOCK_MONOTONIC_RAW, &start);
