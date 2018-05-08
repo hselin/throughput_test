@@ -1,12 +1,6 @@
-#include <iostream>
-#include <cstdio>
-#include <string>
-#include <ostream>
-#include <string>
-#include <vector>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <cstring>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <dlfcn.h>
@@ -17,6 +11,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <netinet/tcp.h>
+#include <time.h>
 
 #define SERV_PORT				(8000)
 
@@ -26,6 +21,8 @@
 #define GB						(1024 * MB)
 
 #define BUFFER_SIZE				(1 * MB)
+
+#define TEST_TIME_US			(30 * 1000000)
 
 void set_non_block(int fd)
 {
@@ -55,48 +52,70 @@ void disable_nagle(int fd)
 	assert(!result);
 }
 
+uint64_t getElapsedTime(struct timespec *start, struct timespec *end)
+{
+    return ((end->tv_sec - start->tv_sec) * 1000000) + ((end->tv_nsec - start->tv_nsec) / 1000);
+}
+
 int main(int argc, char **argv)
 {
+	int listen_fd;
+	struct sockaddr_in addr;
+
 	int num_connections = atoi(argv[1]);
 
-	int fds[num_connections];
-	struct sockaddr_in addr;
+	listen_fd = socket(AF_INET, SOCK_STREAM, 0);
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(argv[2]);
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons(SERV_PORT);
+
+	bind(listen_fd, (struct sockaddr *) &addr, sizeof(addr));
+	listen(listen_fd, num_connections);
+
+	int fds[num_connections];
 
 	for(int i = 0; i < num_connections; i++)
 	{
-		fds[i] = socket(AF_INET, SOCK_STREAM, 0);
-		assert(fds[i] >= 0);
+		struct sockaddr_in remote_addr;
+		socklen_t addr_len = sizeof(remote_addr);
 
-		int status = connect(fds[i], (struct sockaddr *) &addr, sizeof(addr));
+		fds[i] = accept(listen_fd, (struct sockaddr *) &remote_addr, &addr_len);
 
-		if(status < 0)
-		{
-			perror("error connecting");
-		}
-
-		assert(!status);
+		printf("accepted: %d\n", i);
 
 		set_non_block(fds[i]);
 		disable_nagle(fds[i]);
 	}
 
+
+
+	struct timespec start, now;
+	uint64_t elapsedTime;
+
 	char *buffer = (char *)calloc(1, BUFFER_SIZE);
 	assert(buffer);
 
-	while(1)
+	uint64_t total_bytes_received = 0;
+
+	clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	do
 	{
 		for(int i = 0; i < num_connections; i++)
 		{
-			write(fds[i], buffer, BUFFER_SIZE);
+			ssize_t status = recv(fds[i], buffer, BUFFER_SIZE, MSG_DONTWAIT);
+
+			if(status > 0)
+				total_bytes_received += status;
 		}
 
-		//usleep(10000);
-	}
+		clock_gettime(CLOCK_MONOTONIC_RAW, &now);
+		elapsedTime = getElapsedTime(&start, &now);
+	} while(elapsedTime <= TEST_TIME_US);
+
+	printf("total_bytes_received: %lu\n", total_bytes_received);
+	printf("throughput: %fMB/s\n", ((float)total_bytes_received / (float)MB) / (elapsedTime / 1000000));
 
 	return 0;
 }
