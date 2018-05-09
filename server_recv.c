@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <netinet/tcp.h>
 #include <time.h>
+#include <signal.h>
 
 #define SERV_PORT				(8000)
 
@@ -22,7 +23,7 @@
 
 #define BUFFER_SIZE				(1 * MB)
 
-#define TEST_TIME_US			(30 * 1000000)
+#define TEST_TIME_US			(5 * 1000000)
 
 void set_non_block(int fd)
 {

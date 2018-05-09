@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <netinet/tcp.h>
 #include <time.h>
+#include <signal.h>
 
 #define SERV_PORT				(8000)
 
@@ -22,7 +23,10 @@
 
 #define BUFFER_SIZE				(1 * MB)
 
-
+struct timespec start, now;
+uint64_t elapsedTime;
+uint64_t total_bytes_sent = 0;
+int exit_program = 0;
 
 void set_non_block(int fd)
 {
@@ -55,6 +59,16 @@ void disable_nagle(int fd)
 uint64_t getElapsedTime(struct timespec *start, struct timespec *end)
 {
     return ((end->tv_sec - start->tv_sec) * 1000000) + ((end->tv_nsec - start->tv_nsec) / 1000);
+}
+
+void handle_sigpipe(int sig)
+{
+	clock_gettime(CLOCK_MONOTONIC_RAW, &now);
+	elapsedTime = getElapsedTime(&start, &now);
+	printf("total_bytes_sent: %lu\n", total_bytes_sent);
+	printf("throughput: %fMB/s\n", ((float)total_bytes_sent / (float)MB) / (elapsedTime / 1000000));
+	exit_program = 1;
+	exit(1);
 }
 
 int main(int argc, char **argv)
@@ -93,14 +107,11 @@ int main(int argc, char **argv)
 	char *buffer = (char *)calloc(1, BUFFER_SIZE);
 	assert(buffer);
 
-	struct timespec start, now;
-	uint64_t elapsedTime;
-
-	uint64_t total_bytes_sent = 0;
-
 	clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-	while(1)
+	signal(SIGPIPE, handle_sigpipe);
+
+	while(!exit_program)
 	{
 		for(int i = 0; i < num_connections; i++)
 		{
@@ -112,12 +123,10 @@ int main(int argc, char **argv)
 		//usleep(10000);
 	}
 
-
 	clock_gettime(CLOCK_MONOTONIC_RAW, &now);
 	elapsedTime = getElapsedTime(&start, &now);
 	printf("total_bytes_sent: %lu\n", total_bytes_sent);
 	printf("throughput: %fMB/s\n", ((float)total_bytes_sent / (float)MB) / (elapsedTime / 1000000));
-
 
 	return 0;
 }
